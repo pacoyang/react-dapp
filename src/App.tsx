@@ -3,15 +3,18 @@ import { ethers } from 'ethers'
 
 import Greeter from '../artifacts/contracts/Greeter.sol/Greeter.json'
 import Token from '../artifacts/contracts/Token.sol/Token.json'
+import Caller from '../artifacts/contracts/Caller.sol/Caller.json'
 import './App.css'
 
 const greeterAddress = '0x0165878A594ca255338adfa4d48449f69242Eb8F'
 const tokenAddress = '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853'
+const callerAddress = '0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44'
 
 function App() {
   const [greeting, setGreetingValue] = useState<string>()
   const [userAccount, setUserAccount] = useState<string>()
   const [amount, setAmount] = useState<string>()
+  const [oracleAddress, setOracleAddress] = useState<string>()
 
   const requestAccount = async () => {
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
@@ -64,7 +67,37 @@ function App() {
       await transaction.wait()
       console.log(`${amount} Coins successfully sent to ${userAccount}`)
     }
+  }
 
+  const confirmOracleAddress = async () => {
+    if (typeof window.ethereum !== 'undefined') {
+      await requestAccount()
+      const provider = new ethers.WebSocketProvider('ws://localhost:8545')
+      const signer = await provider.getSigner()
+      const contract = new ethers.Contract(callerAddress, Caller.abi, signer)
+      contract.on('OracleAddressChanged', (address: string) => {
+        console.log(`Oracle Address successfully set to ${address}`)
+      })
+      contract.on('RandomNumberRequested', (id: number) => {
+        console.info(`RandomNumberRequested: ${id}`)
+      })
+      contract.on('RandomNumberReceived', (randomNumber: number, id: number) => {
+        console.info(`RandomNumberReceived: ${id} ${randomNumber}`)
+      })
+      const transaction = await contract.setRandOracleAddress(oracleAddress)
+      await transaction.wait()
+    }
+  }
+
+  const getRandomNumber = async () => {
+    if (typeof window.ethereum !== 'undefined') {
+      await requestAccount()
+      const provider = new ethers.WebSocketProvider('ws://localhost:8545')
+      const signer = await provider.getSigner()
+      const contract = new ethers.Contract(callerAddress, Caller.abi, signer)
+      const transaction = await contract.getRandomNumber()
+      await transaction.wait()
+    }
   }
 
   return (
@@ -78,6 +111,10 @@ function App() {
         <button onClick={sendCoins}>Send Coins</button>
         <input onChange={e => setUserAccount(e.target.value)} placeholder="Account ID" />
         <input onChange={e => setAmount(e.target.value)} placeholder="Amount" />
+        <br />
+        <button onClick={confirmOracleAddress}>Set Oracle Address</button>
+        <input onChange={e => setOracleAddress(e.target.value)} placeholder="Oracle Address" />
+        <button onClick={getRandomNumber}>Get Random Number</button>
       </header>
     </div>
   )
